@@ -53,7 +53,25 @@ class ScanWorker(QThread):
         except Exception as e:
             self.error.emit(str(e))
 
-# ─── Animated background widget ──────────────────────────────────────────────
+# ─── Worker thread: loads distro logo from URL ────────────────────────────────
+
+class LogoLoader(QThread):
+    finished = pyqtSignal(bytes)
+
+    def __init__(self, url: str, parent=None):
+        super().__init__(parent)
+        self.url = url
+
+    def run(self):
+        try:
+            req = urllib.request.Request(
+                self.url, headers={"User-Agent": "Mozilla/5.0"}
+            )
+            data = urllib.request.urlopen(req, timeout=5).read()
+            self.finished.emit(data)
+        except Exception:
+            self.finished.emit(b"")
+
 
 class ImageBackground(QWidget):
     """Full-window image background with animated particle sparkles overlay."""
@@ -63,7 +81,7 @@ class ImageBackground(QWidget):
         self._pixmap = None
         self._overlay_alpha = 120  # darkness overlay
         self.particles = [
-            (random.randint(0,1280), random.randint(0,720), random.random(), random.random())
+            (random.randint(0, 900), random.randint(0, 650), random.random(), random.random())
             for _ in range(60)
         ]
         self.t = 0
@@ -503,10 +521,6 @@ class KDCWindow(QMainWindow):
         """)
         btn.clicked.connect(self._start_scan)
 
-        # Pulse animation on button
-        self.btn_anim_timer = QTimer(self)
-        self.btn_anim_timer.timeout.connect(lambda: None)
-
         note = QLabel("uwu scanning your CPU, RAM, GPU & disk~")
         note.setAlignment(Qt.AlignmentFlag.AlignCenter)
         note.setStyleSheet("color: #9B59B6; font-size: 11px; font-family: Arial;")
@@ -640,24 +654,26 @@ class KDCWindow(QMainWindow):
 
     def _load_logo(self, url):
         if not url:
-            self.logo_label.setText("🐧")
-            self.logo_label.setStyleSheet("font-size: 64px;")
+            self._set_logo_fallback()
             return
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            data = urllib.request.urlopen(req, timeout=5).read()
+        self._logo_loader = LogoLoader(url)
+        self._logo_loader.finished.connect(self._on_logo_loaded)
+        self._logo_loader.start()
+
+    def _on_logo_loaded(self, data: bytes):
+        if data:
             pixmap = QPixmap()
             pixmap.loadFromData(data)
             if not pixmap.isNull():
                 pixmap = pixmap.scaled(80, 80, Qt.AspectRatioMode.KeepAspectRatio,
                                        Qt.TransformationMode.SmoothTransformation)
                 self.logo_label.setPixmap(pixmap)
-            else:
-                self.logo_label.setText("🐧")
-                self.logo_label.setStyleSheet("font-size: 64px;")
-        except Exception:
-            self.logo_label.setText("🐧")
-            self.logo_label.setStyleSheet("font-size: 64px;")
+                return
+        self._set_logo_fallback()
+
+    def _set_logo_fallback(self):
+        self.logo_label.setText("🐧")
+        self.logo_label.setStyleSheet("font-size: 64px;")
 
     def _do_rainbow_sweep(self, result):
         self.screen2.hide()

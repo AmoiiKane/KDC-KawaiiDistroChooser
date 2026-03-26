@@ -67,11 +67,28 @@ get_current_os() {
     echo "\"current_os\": \"${os_name}\""
 }
 
-echo "{"
-echo "  $(get_cpu_info),"
-echo "  $(get_ram_info),"
-echo "  $(get_gpu_info),"
-echo "  $(get_disk_info),"
-echo "  $(get_bios_info),"
-echo "  $(get_current_os)"
-echo "}"
+python3 - <<PYEOF
+import json, sys
+
+cpu_info   = "$(get_cpu_info)"
+ram_info   = "$(get_ram_info)"
+gpu_info   = "$(get_gpu_info)"
+disk_info  = "$(get_disk_info)"
+bios_info  = "$(get_bios_info)"
+os_info    = "$(get_current_os)"
+
+def kv(s):
+    """Parse 'key: value' pairs from a shell snippet into a dict."""
+    import re
+    result = {}
+    for m in re.finditer(r'"(\w+)":\s*(".*?"|[\d]+)', s):
+        k, v = m.group(1), m.group(2)
+        result[k] = int(v) if v.lstrip('-').isdigit() else v.strip('"')
+    return result
+
+data = {}
+for chunk in [cpu_info, ram_info, gpu_info, disk_info, bios_info, os_info]:
+    data.update(kv(chunk))
+
+print(json.dumps(data))
+PYEOF

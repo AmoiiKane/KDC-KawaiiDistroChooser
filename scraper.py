@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 import re
 import json
 import time
+from datetime import datetime
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36"
@@ -115,10 +116,10 @@ def scrape_reddit_recommendations(specs_summary: str) -> list[str]:
     queries = [
         f"best linux distro {specs_summary} site:reddit.com",
         "linux distro recommendation low ram site:reddit.com",
-        "best linux distro beginner 2024 site:reddit.com"
+        f"best linux distro beginner {datetime.now().year} site:reddit.com"
     ]
 
-    for query in queries[:2]:
+    for query in queries:
         try:
             url = f"https://www.reddit.com/search.json?q={requests.utils.quote(query)}&limit=10&sort=relevance"
             resp = requests.get(url, headers={**HEADERS, "Accept": "application/json"}, timeout=10)
